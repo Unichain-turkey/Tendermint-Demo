@@ -1,70 +1,66 @@
 package main
 
 import (
-	"github.com/tendermint/abci/types"
-	"crypto/sha256"
-	"encoding/hex"
-	"time"
-	"fmt"
-	cmn "github.com/tendermint/tmlibs/common"
-	"encoding/binary"
-	"github.com/tendermint/abci/example/code"
 	"bytes"
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/hex"
+	"fmt"
+	"github.com/davecgh/go-spew/spew"
+	"github.com/tendermint/abci/example/code"
 	"github.com/tendermint/abci/server"
+	"github.com/tendermint/abci/types"
+	cmn "github.com/tendermint/tmlibs/common"
 	"strconv"
 	"strings"
-	"github.com/davecgh/go-spew/spew"
+	"time"
 )
 
-var initialTime string="2018-01-01T00:00:00.000Z"
+var initialTime string = "2018-01-01T00:00:00.000Z"
 
 type Data struct {
-	Id					int
-	Key					int
-	Date     			string
+	Id   int
+	Key  int
+	Date string
 }
 type Block struct {
-	Index     			int
-	Timestamp 			string
-	CertificateHash     string
-	Certifcate			Data
-	Hash      			string
-	PrevHash  			string
+	Index           int
+	Timestamp       string
+	CertificateHash string
+	Certifcate      Data
+	Hash            string
+	PrevHash        string
 }
-
 
 type Certificate struct {
 	types.BaseApplication
 	Blockchain []Block
-	Height  int64
-	AppHash []byte
-
+	Height     int64
+	AppHash    []byte
 }
 
 func NewCertificateApplication() *Certificate {
 	var _blockchain []Block
 
-	t,_ := time.Parse(time.RFC3339, initialTime)
+	t, _ := time.Parse(time.RFC3339, initialTime)
 
-	genesisBlock := Block{0, t.String(), "", Data{}, "",""}
+	genesisBlock := Block{0, t.String(), "", Data{}, "", ""}
 	//spew.Dump(genesisBlock)
 	_blockchain = append(_blockchain, genesisBlock)
 
-	return &Certificate{Height: 0,Blockchain:_blockchain,AppHash:nil}
+	return &Certificate{Height: 0, Blockchain: _blockchain, AppHash: nil}
 }
 func (app *Certificate) Info(req types.RequestInfo) types.ResponseInfo {
-	fmt.Println("Info: ",app.Height," size ", len(app.Blockchain))
+	fmt.Println("Info: ", app.Height, " size ", len(app.Blockchain))
 	return types.ResponseInfo{Data: cmn.Fmt("{\"hashes\":%v,\"height\":%v}", app.AppHash, app.Height)}
 }
 func (app *Certificate) DeliverTx(tx []byte) types.ResponseDeliverTx {
 
-
-	var _id,_key, _date []byte
+	var _id, _key, _date []byte
 	parts := bytes.Split(tx, []byte(","))
 
-
 	if len(parts) == 3 {
-		_id,_key, _date = parts[0], parts[1],parts[2]
+		_id, _key, _date = parts[0], parts[1], parts[2]
 	} else {
 		return types.ResponseDeliverTx{
 			Code: code.CodeTypeEncodingError,
@@ -72,11 +68,11 @@ func (app *Certificate) DeliverTx(tx []byte) types.ResponseDeliverTx {
 	}
 	id, _ := strconv.Atoi(string(_id))
 	key, _ := strconv.Atoi(string(_key))
-	date:= string(_date)
+	date := string(_date)
 
-	fmt.Println("in DeliverTx ", id," ",key," ",date)
+	fmt.Println("in DeliverTx ", id, " ", key, " ", date)
 
-	newBlock, err := generateBlock(app.Blockchain[len(app.Blockchain)-1],id,key,date)
+	newBlock, err := generateBlock(app.Blockchain[len(app.Blockchain)-1], id, key, date)
 	if err != nil {
 		return types.ResponseDeliverTx{
 			Code: code.CodeTypeBadNonce,
@@ -95,7 +91,7 @@ func (app *Certificate) DeliverTx(tx []byte) types.ResponseDeliverTx {
 }
 
 func (app *Certificate) CheckTx(tx []byte) types.ResponseCheckTx {
-	fmt.Println("in CheckTx ",tx)
+	fmt.Println("in CheckTx ", tx)
 
 	return types.ResponseCheckTx{Code: code.CodeTypeOK}
 }
@@ -109,23 +105,23 @@ func (app *Certificate) Commit() (resp types.ResponseCommit) {
 	appHash := make([]byte, 8)
 	binary.PutVarint(appHash, int64(app.Height))
 
-	app.AppHash=appHash
+	app.AppHash = appHash
 
-	fmt.Println("in Commit ",appHash)
+	fmt.Println("in Commit ", appHash)
 
 	return types.ResponseCommit{Data: appHash}
 }
 
 func (app *Certificate) Query(reqQuery types.RequestQuery) types.ResponseQuery {
 
-	query := strings.Split(string(reqQuery.Data),"=")
-	fmt.Println("in Query Data ",query)
+	query := strings.Split(string(reqQuery.Data), "=")
+	fmt.Println("in Query Data ", query)
 
 	switch query[0] {
 	case "hash":
 		for _, v := range app.Blockchain {
-			if (v.CertificateHash==query[1]){
-				return types.ResponseQuery{Log:  "exists"}
+			if v.CertificateHash == query[1] {
+				return types.ResponseQuery{Log: "exists"}
 			}
 		}
 		return types.ResponseQuery{Log: cmn.Fmt("Not found This hash", query[1])}
@@ -137,7 +133,7 @@ func (app *Certificate) Query(reqQuery types.RequestQuery) types.ResponseQuery {
 
 func calculateHash(block Block) string {
 
-	record := string(block.Index) + block.Timestamp + block.CertificateHash +block.Certifcate.Date +
+	record := string(block.Index) + block.Timestamp + block.CertificateHash + block.Certifcate.Date +
 		string(block.Certifcate.Id) + string(block.Certifcate.Key) + block.PrevHash
 	h := sha256.New()
 	h.Write([]byte(record))
@@ -145,7 +141,7 @@ func calculateHash(block Block) string {
 	return hex.EncodeToString(hashed)
 
 }
-func generateBlock(oldBlock Block, _id int,_key int,_date string) (Block, error) {
+func generateBlock(oldBlock Block, _id int, _key int, _date string) (Block, error) {
 
 	var newBlock Block
 
@@ -153,11 +149,11 @@ func generateBlock(oldBlock Block, _id int,_key int,_date string) (Block, error)
 
 	newBlock.Index = oldBlock.Index + 1
 	newBlock.Timestamp = t.String()
-	newBlock.Certifcate =Data{_id,_key,_date}
+	newBlock.Certifcate = Data{_id, _key, _date}
 	h := sha256.New()
-	h.Write([]byte(string(_id)+string(_date)+string(_key)))
+	h.Write([]byte(string(_id) + string(_date) + string(_key)))
 
-	newBlock.CertificateHash=hex.EncodeToString(h.Sum(nil))
+	newBlock.CertificateHash = hex.EncodeToString(h.Sum(nil))
 	newBlock.PrevHash = oldBlock.Hash
 	newBlock.Hash = calculateHash(newBlock)
 
@@ -179,9 +175,10 @@ func isBlockValid(newBlock, oldBlock Block) bool {
 }
 func main() {
 
+	fmt.Println("Started My app")
 	app := NewCertificateApplication()
 
-	srv := server.NewSocketServer("tcp://0.0.0.0:46658", app)
+	srv := server.NewSocketServer("tcp://0.0.0.0:26658", app)
 
 	if err := srv.Start(); err != nil {
 		fmt.Println(err)
@@ -193,7 +190,3 @@ func main() {
 	})
 
 }
-
-
-
-
