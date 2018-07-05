@@ -1,4 +1,4 @@
-package crypto
+package wallet
 
 import (
 	"bytes"
@@ -10,45 +10,65 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"certificate/transaction"
+	"strconv"
 )
 
-func GetPrivateKey() *rsa.PrivateKey {
+
+type Wallet struct {
+	PrivateKey *rsa.PrivateKey
+	PublicKey  *rsa.PublicKey
+}
+
+
+func NewWallet() *Wallet {
+	private, public := newKeyPair()
+	wallet := Wallet{private, public}
+
+	return &wallet
+}
+
+func newKeyPair() (*rsa.PrivateKey,*rsa.PublicKey){
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		fmt.Println(err.Error)
-	}
-	return privateKey
+		}
+	return privateKey, &privateKey.PublicKey
+}
+
+func mixTransaction(data transactoin.Transaction) string{
+
+	return strconv.Itoa(data.Identiy) +data.Name +data.Major
 
 }
-func GetPublicKeyFromPrivateKey(privateKey *rsa.PrivateKey) *rsa.PublicKey {
-	publicKey := &privateKey.PublicKey
-	return publicKey
 
-}
-func SignTransaction(privateKey *rsa.PrivateKey, data string) []byte {
+func SignTransaction( data * transactoin.Transaction,wallet * Wallet,) {
 
-	messageBytes := bytes.NewBufferString(data)
+	messageBytes := bytes.NewBufferString(mixTransaction(*data))
 	hash := sha512.New()
 	hash.Write(messageBytes.Bytes())
 	digest := hash.Sum(nil)
 
-	signature, err := rsa.SignPKCS1v15(rand.Reader, privateKey, crypto.SHA512, digest)
+	signature, err := rsa.SignPKCS1v15(rand.Reader, wallet.PrivateKey, crypto.SHA512, digest)
+
 	if err != nil {
 		fmt.Printf("Error from signing: %s\n", err)
-		return nil
+	} else{
+		data.Signature=signature
+		data.PubKey=ExportRsaPublicKey(wallet.PublicKey)
 	}
-	return signature
-}
-func VerifyTransaction(signature []byte, publicKey *rsa.PublicKey,data string) bool {
 
-	messageBytes := bytes.NewBufferString(data)
+}
+
+func VerifyTransaction(data * transactoin.Transaction, wallet * Wallet) bool {
+
+	messageBytes := bytes.NewBufferString(mixTransaction(*data))
 	hash := sha512.New()
 	hash.Write(messageBytes.Bytes())
 	digest := hash.Sum(nil)
 
-	fmt.Printf("signature: %v\n", signature)
 
-	err := rsa.VerifyPKCS1v15(publicKey, crypto.SHA512, digest, signature)
+	err := rsa.VerifyPKCS1v15(wallet.PublicKey, crypto.SHA512, digest, data.Signature)
 	if err != nil {
 		fmt.Printf("rsa.VerifyPKCS1v15 error: %V\n", err)
 		return false
@@ -57,7 +77,7 @@ func VerifyTransaction(signature []byte, publicKey *rsa.PublicKey,data string) b
 	fmt.Println("Signature good!")
 	return true
 }
-func ExportRsaPrivateKeyAsPemStr(privkey *rsa.PrivateKey) string {
+func ExportRsaPrivateKey(privkey *rsa.PrivateKey) []byte {
 	privkey_bytes := x509.MarshalPKCS1PrivateKey(privkey)
 	privkey_pem := pem.EncodeToMemory(
 		&pem.Block{
@@ -65,7 +85,7 @@ func ExportRsaPrivateKeyAsPemStr(privkey *rsa.PrivateKey) string {
 			Bytes: privkey_bytes,
 		},
 	)
-	return string(privkey_pem)
+	return privkey_pem
 }
 
 func ParseRsaPrivateKeyFromPemStr(privPEM string) (*rsa.PrivateKey, error) {
@@ -82,10 +102,10 @@ func ParseRsaPrivateKeyFromPemStr(privPEM string) (*rsa.PrivateKey, error) {
 	return priv, nil
 }
 
-func ExportRsaPublicKeyAsPemStr(pubkey *rsa.PublicKey) (string) {
+func ExportRsaPublicKey(pubkey *rsa.PublicKey) ([]byte) {
 	pubkey_bytes, err := x509.MarshalPKIXPublicKey(pubkey)
 	if err != nil {
-		return ""
+		return nil
 	}
 	pubkey_pem := pem.EncodeToMemory(
 		&pem.Block{
@@ -94,7 +114,7 @@ func ExportRsaPublicKeyAsPemStr(pubkey *rsa.PublicKey) (string) {
 		},
 	)
 
-	return string(pubkey_pem)
+	return pubkey_pem
 }
 
 func ParseRsaPublicKeyFromPemStr(pubPEM string) (*rsa.PublicKey, error) {
@@ -117,18 +137,19 @@ func ParseRsaPublicKeyFromPemStr(pubPEM string) (*rsa.PublicKey, error) {
 	return nil, errors.New("Key type is not RSA")
 }
 
-/*
 
-func main() {
+func test() {
 
 	fmt.Println("Started My app")
 
 
-	message := "Unichain is here"
-	privateKey := getPrivateKey()
-	publicKey := getPublicKeyFromPrivateKey(privateKey)
-	signature := signTransaction(privateKey,message)
-	fmt.Println(verifyTransaction(signature, publicKey,message))
+
+	myWallet :=NewWallet()
+	transact :=transactoin.NewTransaction("Fatih","Computer Science",150113082)
+
+	SignTransaction(transact,myWallet)
+	fmt.Println(VerifyTransaction(transact,myWallet))
+
+
 
 }
-*/

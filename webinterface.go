@@ -1,10 +1,13 @@
 package main
 
+
 import (
 	"github.com/gin-gonic/gin"
-	"certificate/crypto"
+	"certificate/wallet"
 	"fmt"
-	"strings"
+	"os"
+	"log"
+
 )
 type signFormat struct {
 	DATA string 	  		`json:"data""  		binding:"required"`
@@ -15,38 +18,24 @@ type veriyfFormat struct {
 	SIGNATURE string    	`json:"signature" 	binding:"required"`
 	PUBLICKEY string 		`json:"publicKey" 	binding:"required"`
 }
-
+var mywallet wallet.Wallet
 
 func getIndex(c *gin.Context) {
 	c.JSON(200, gin.H{
-		"For taking public and private keys": "/keys",
+		"For creating public and private keys": "/keys",
 		"For signing transaction to call with post request ": "/sign ",
 		"For validation transaction to call  with post request ": "/validation ",
-
 	})
-
-
-
 }
+
 func getKeys(c *gin.Context) {
 
-	privateKey:=crypto.GetPrivateKey()
-	publicKey:=crypto.GetPublicKeyFromPrivateKey(privateKey)
-
-
-	/*
-	file, err := os.Create("keys.txt")
-	if err != nil {
-		log.Fatal("Cannot create file", err)
-	}
-	defer file.Close()
-	*/
+	mywallet=wallet.NewWallet();
 
 
 	keys:=  crypto.ExportRsaPrivateKeyAsPemStr(privateKey)+
 			crypto.ExportRsaPublicKeyAsPemStr(publicKey)
 
-	//file.WriteString(keys)
 
 	c.String(200,"%s",keys)
 
@@ -56,13 +45,16 @@ func signData(c *gin.Context) {
 
 	var s signFormat
 	c.BindJSON(&s)
-	//data := s.DATA
-	strprivate := strings.Replace(s.PRIVATEKEY," ", "",-1)
-	fmt.Println(strprivate)
-	_,er := crypto.ParseRsaPrivateKeyFromPemStr(strprivate)
-	fmt.Println(er)
+	data := s.DATA
+	strprivate :=s.PRIVATEKEY
+	privateKey,err := crypto.ParseRsaPrivateKeyFromPemStr(strprivate)
+
+	//signature := crypto.SignTransaction(privateKey,data)
+	fmt.Println(privateKey)
+	fmt.Println(err)
+	fmt.Println(data)
 	c.JSON(200, gin.H{
-		"signature": "as",
+		"signature": "sd",
 
 	})
 
@@ -70,9 +62,7 @@ func signData(c *gin.Context) {
 func verifyData(c *gin.Context) {
 
 
-	fmt.Println(c.Request.GetBody)
-	fmt.Println(c.Request.Form)
-	fmt.Println(c.Request.Header)
+
 	data := c.PostForm("data")
 	public := c.PostForm("publicKey")
 	signature := c.PostForm("signature")
