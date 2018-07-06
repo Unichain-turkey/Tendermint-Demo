@@ -5,20 +5,21 @@ import (
 	"github.com/gin-gonic/gin"
 	"certificate/wallet"
 	"fmt"
-	"os"
-	"log"
-
+	"certificate/transaction"
+	"strconv"
 )
-type signFormat struct {
-	DATA string 	  		`json:"data""  		binding:"required"`
-	PRIVATEKEY string 		`json:"privateKey"  binding:"required"`
+type transactFormat struct {
+	NAME 	string 	  			`json:"name""  		binding:"required"`
+	MAJOR 	string 				`json:"major"  		binding:"required"`
+	ID    	int					`json:"id"  		binding:"required"`
 }
-type veriyfFormat struct {
-	DATA string   			`json:"data" 	  	binding:"required"`
-	SIGNATURE string    	`json:"signature" 	binding:"required"`
-	PUBLICKEY string 		`json:"publicKey" 	binding:"required"`
-}
-var mywallet wallet.Wallet
+
+
+
+var mywallet * wallet.Wallet
+
+var transactions []transactoin.Transaction
+
 
 func getIndex(c *gin.Context) {
 	c.JSON(200, gin.H{
@@ -31,57 +32,65 @@ func getIndex(c *gin.Context) {
 func getKeys(c *gin.Context) {
 
 	mywallet=wallet.NewWallet();
-
-
-	keys:=  crypto.ExportRsaPrivateKeyAsPemStr(privateKey)+
-			crypto.ExportRsaPublicKeyAsPemStr(publicKey)
-
+	keys:=  string(mywallet.ExportRsaPrivateKey())+
+			string(mywallet.ExportRsaPublicKey())
 
 	c.String(200,"%s",keys)
 
+}
+func getAllTransactions(c *gin.Context) {
+
+	data :=gin.H{"ItemList": "Blank",}
+
+	for i, _tran := range transactions {
+		data[strconv.Itoa(i)]=_tran
+	}
+	c.JSON(200, data)
 
 }
-func signData(c *gin.Context) {
 
-	var s signFormat
-	c.BindJSON(&s)
-	data := s.DATA
-	strprivate :=s.PRIVATEKEY
-	privateKey,err := crypto.ParseRsaPrivateKeyFromPemStr(strprivate)
+func signTransaction(c *gin.Context) {
 
-	//signature := crypto.SignTransaction(privateKey,data)
-	fmt.Println(privateKey)
-	fmt.Println(err)
-	fmt.Println(data)
+	var t transactFormat
+	c.BindJSON(&t)
+
+	fmt.Println(t)
+	_transaction :=transactoin.NewTransaction(t.NAME,t.MAJOR,t.ID)
+	signature := mywallet.SignTransaction(_transaction)
+	_transaction.Signature=signature
+	transactions = append(transactions,*_transaction)
+
 	c.JSON(200, gin.H{
-		"signature": "sd",
-
+		"signature": signature,
 	})
 
 }
-func verifyData(c *gin.Context) {
+func verifyTransaction(c *gin.Context) {
 
+	index := c.Query("index")
+	fmt.Println(index)
 
+	i, _ := strconv.Atoi(index)
 
-	data := c.PostForm("data")
-	public := c.PostForm("publicKey")
-	signature := c.PostForm("signature")
-
+	_transact := transactions[i]
+	succes := mywallet.VerifyTransaction(&_transact)
 	c.JSON(200, gin.H{
-		"private": data,
-		"public ": public,
-		"signature ": signature,
+		"index": 	i,
+		"status":succes,
+		"transaction":transactions[i],
 
 	})
 
 }
 func main() {
 
+
 	router := gin.Default()
 	router.GET("/", getIndex)
 	router.GET("/keys", getKeys)
-	router.POST("/signData", signData)
-	router.POST("/verifyData", verifyData)
+	router.GET("/all", getAllTransactions)
+	router.POST("/sign", signTransaction)
+	router.GET("/verify", verifyTransaction)
 
 
 	router.Run() // listen and serve on 0.0.0.0:8080

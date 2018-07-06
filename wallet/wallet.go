@@ -36,7 +36,7 @@ func newKeyPair() (*rsa.PrivateKey,*rsa.PublicKey){
 }
 
 
-func (w * Wallet) SignTransaction (t * transactoin.Transaction) {
+func (w * Wallet) SignTransaction (t * transactoin.Transaction) [] byte {
 
 	messageBytes := bytes.NewBufferString(t.MixTransaction())
 	hash := sha512.New()
@@ -51,6 +51,7 @@ func (w * Wallet) SignTransaction (t * transactoin.Transaction) {
 		t.Signature=signature
 		t.PubKey=w.ExportRsaPublicKey()
 	}
+	return signature
 
 }
 
