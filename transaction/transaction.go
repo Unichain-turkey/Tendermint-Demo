@@ -15,6 +15,11 @@ type Transaction struct {
 	PubKey    []byte//of scholl
 
 }
+func (t *Transaction) MixTransaction() string{
+
+	return strconv.Itoa(t.Identiy) +t.Name +t.Major
+
+}
 
 func NewTransaction(_name string, _major string,_id int) *Transaction {
 

@@ -11,7 +11,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"certificate/transaction"
-	"strconv"
 )
 
 
@@ -36,39 +35,34 @@ func newKeyPair() (*rsa.PrivateKey,*rsa.PublicKey){
 	return privateKey, &privateKey.PublicKey
 }
 
-func mixTransaction(data transactoin.Transaction) string{
 
-	return strconv.Itoa(data.Identiy) +data.Name +data.Major
+func (w * Wallet) SignTransaction (t * transactoin.Transaction) {
 
-}
-
-func SignTransaction( data * transactoin.Transaction,wallet * Wallet,) {
-
-	messageBytes := bytes.NewBufferString(mixTransaction(*data))
+	messageBytes := bytes.NewBufferString(t.MixTransaction())
 	hash := sha512.New()
 	hash.Write(messageBytes.Bytes())
 	digest := hash.Sum(nil)
 
-	signature, err := rsa.SignPKCS1v15(rand.Reader, wallet.PrivateKey, crypto.SHA512, digest)
+	signature, err := rsa.SignPKCS1v15(rand.Reader, w.PrivateKey, crypto.SHA512, digest)
 
 	if err != nil {
 		fmt.Printf("Error from signing: %s\n", err)
 	} else{
-		data.Signature=signature
-		data.PubKey=ExportRsaPublicKey(wallet.PublicKey)
+		t.Signature=signature
+		t.PubKey=w.ExportRsaPublicKey()
 	}
 
 }
 
-func VerifyTransaction(data * transactoin.Transaction, wallet * Wallet) bool {
+func  (w * Wallet) VerifyTransaction(t * transactoin.Transaction) bool {
 
-	messageBytes := bytes.NewBufferString(mixTransaction(*data))
+	messageBytes := bytes.NewBufferString(t.MixTransaction())
 	hash := sha512.New()
 	hash.Write(messageBytes.Bytes())
 	digest := hash.Sum(nil)
 
 
-	err := rsa.VerifyPKCS1v15(wallet.PublicKey, crypto.SHA512, digest, data.Signature)
+	err := rsa.VerifyPKCS1v15(w.PublicKey, crypto.SHA512, digest, t.Signature)
 	if err != nil {
 		fmt.Printf("rsa.VerifyPKCS1v15 error: %V\n", err)
 		return false
@@ -77,8 +71,8 @@ func VerifyTransaction(data * transactoin.Transaction, wallet * Wallet) bool {
 	fmt.Println("Signature good!")
 	return true
 }
-func ExportRsaPrivateKey(privkey *rsa.PrivateKey) []byte {
-	privkey_bytes := x509.MarshalPKCS1PrivateKey(privkey)
+func(w * Wallet) ExportRsaPrivateKey() []byte {
+	privkey_bytes := x509.MarshalPKCS1PrivateKey(w.PrivateKey)
 	privkey_pem := pem.EncodeToMemory(
 		&pem.Block{
 			Type:  "RSA PRIVATE KEY",
@@ -88,6 +82,21 @@ func ExportRsaPrivateKey(privkey *rsa.PrivateKey) []byte {
 	return privkey_pem
 }
 
+
+func  (w * Wallet) ExportRsaPublicKey() ([]byte) {
+	pubkey_bytes, err := x509.MarshalPKIXPublicKey(w.PublicKey)
+	if err != nil {
+		return nil
+	}
+	pubkey_pem := pem.EncodeToMemory(
+		&pem.Block{
+			Type:  "RSA PUBLIC KEY",
+			Bytes: pubkey_bytes,
+		},
+	)
+
+	return pubkey_pem
+}
 func ParseRsaPrivateKeyFromPemStr(privPEM string) (*rsa.PrivateKey, error) {
 	block, _ := pem.Decode([]byte(privPEM))
 	if block == nil {
@@ -102,20 +111,6 @@ func ParseRsaPrivateKeyFromPemStr(privPEM string) (*rsa.PrivateKey, error) {
 	return priv, nil
 }
 
-func ExportRsaPublicKey(pubkey *rsa.PublicKey) ([]byte) {
-	pubkey_bytes, err := x509.MarshalPKIXPublicKey(pubkey)
-	if err != nil {
-		return nil
-	}
-	pubkey_pem := pem.EncodeToMemory(
-		&pem.Block{
-			Type:  "RSA PUBLIC KEY",
-			Bytes: pubkey_bytes,
-		},
-	)
-
-	return pubkey_pem
-}
 
 func ParseRsaPublicKeyFromPemStr(pubPEM string) (*rsa.PublicKey, error) {
 	block, _ := pem.Decode([]byte(pubPEM))
@@ -147,8 +142,8 @@ func test() {
 	myWallet :=NewWallet()
 	transact :=transactoin.NewTransaction("Fatih","Computer Science",150113082)
 
-	SignTransaction(transact,myWallet)
-	fmt.Println(VerifyTransaction(transact,myWallet))
+	myWallet.SignTransaction(transact)
+	fmt.Println(myWallet.VerifyTransaction(transact))
 
 
 
