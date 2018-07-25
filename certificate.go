@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
@@ -14,6 +13,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"certificate/transaction"
+	"encoding/json"
+    "net/http"
+	"io/ioutil"
 )
 
 var initialTime string = "2018-01-01T00:00:00.000Z"
@@ -26,10 +29,10 @@ type Data struct {
 type Block struct {
 	Index           int
 	Timestamp       string
-	CertificateHash string
-	Certifcate      Data
+	Transaction		transaction.Transaction
 	Hash            string
 	PrevHash        string
+
 }
 
 type Certificate struct {
@@ -39,13 +42,22 @@ type Certificate struct {
 	AppHash    []byte
 }
 
+
+
+
+var pendingTransaction [] transaction.Transaction;
+
 func NewCertificateApplication() *Certificate {
 	var _blockchain []Block
 
 	t, _ := time.Parse(time.RFC3339, initialTime)
 
-	genesisBlock := Block{0, t.String(), "", Data{}, "", ""}
-	//spew.Dump(genesisBlock)
+	h := sha256.New()
+	h.Write([]byte(string(0) + t.String()))
+
+
+	genesisBlock := Block{0, t.String(), transaction.Transaction{}, hex.EncodeToString(h.Sum(nil)),""}
+
 	_blockchain = append(_blockchain, genesisBlock)
 
 	return &Certificate{Height: 0, Blockchain: _blockchain, AppHash: nil}
@@ -56,23 +68,18 @@ func (app *Certificate) Info(req types.RequestInfo) types.ResponseInfo {
 }
 func (app *Certificate) DeliverTx(tx []byte) types.ResponseDeliverTx {
 
-	var _id, _key, _date []byte
-	parts := bytes.Split(tx, []byte(","))
-
-	if len(parts) == 3 {
-		_id, _key, _date = parts[0], parts[1], parts[2]
-	} else {
+	if len(tx) != 1 {
 		return types.ResponseDeliverTx{
 			Code: code.CodeTypeEncodingError,
 			Log:  fmt.Sprintf("Incomplete Argument List")}
 	}
-	id, _ := strconv.Atoi(string(_id))
-	key, _ := strconv.Atoi(string(_key))
-	date := string(_date)
+	index, _ := strconv.Atoi(string(tx))
 
-	fmt.Println("in DeliverTx ", id, " ", key, " ", date)
+	tras :=app.getTransaction(index)
+	fmt.Println(tras)
 
-	newBlock, err := generateBlock(app.Blockchain[len(app.Blockchain)-1], id, key, date)
+
+	newBlock, err := generateBlock(app.Blockchain[len(app.Blockchain)-1],tras)
 	if err != nil {
 		return types.ResponseDeliverTx{
 			Code: code.CodeTypeBadNonce,
@@ -94,6 +101,12 @@ func (app *Certificate) CheckTx(tx []byte) types.ResponseCheckTx {
 	fmt.Println("in CheckTx ", tx)
 
 	return types.ResponseCheckTx{Code: code.CodeTypeOK}
+}
+
+func byteToTransaction(tx []byte) transaction.Transaction{
+	var _trans transaction.Transaction
+	json.Unmarshal(tx, &_trans)
+	return _trans
 }
 
 func (app *Certificate) Commit() (resp types.ResponseCommit) {
@@ -120,7 +133,7 @@ func (app *Certificate) Query(reqQuery types.RequestQuery) types.ResponseQuery {
 	switch query[0] {
 	case "hash":
 		for _, v := range app.Blockchain {
-			if v.CertificateHash == query[1] {
+			if string(v.Transaction.Hash[:]) == query[1] {
 				return types.ResponseQuery{Log: "exists"}
 			}
 		}
@@ -133,15 +146,14 @@ func (app *Certificate) Query(reqQuery types.RequestQuery) types.ResponseQuery {
 
 func calculateHash(block Block) string {
 
-	record := string(block.Index) + block.Timestamp + block.CertificateHash + block.Certifcate.Date +
-		string(block.Certifcate.Id) + string(block.Certifcate.Key) + block.PrevHash
+	record := string(block.Index) + block.Timestamp + string(block.Transaction.Hash[:]) + string(block.Hash) + block.PrevHash
 	h := sha256.New()
 	h.Write([]byte(record))
 	hashed := h.Sum(nil)
 	return hex.EncodeToString(hashed)
 
 }
-func generateBlock(oldBlock Block, _id int, _key int, _date string) (Block, error) {
+func generateBlock(oldBlock Block, transact transaction.Transaction) (Block, error) {
 
 	var newBlock Block
 
@@ -149,11 +161,8 @@ func generateBlock(oldBlock Block, _id int, _key int, _date string) (Block, erro
 
 	newBlock.Index = oldBlock.Index + 1
 	newBlock.Timestamp = t.String()
-	newBlock.Certifcate = Data{_id, _key, _date}
-	h := sha256.New()
-	h.Write([]byte(string(_id) + string(_date) + string(_key)))
+	newBlock.Transaction = transact
 
-	newBlock.CertificateHash = hex.EncodeToString(h.Sum(nil))
 	newBlock.PrevHash = oldBlock.Hash
 	newBlock.Hash = calculateHash(newBlock)
 
@@ -173,12 +182,30 @@ func isBlockValid(newBlock, oldBlock Block) bool {
 	}
 	return true
 }
+func (app *Certificate) getTransaction(index int) transaction.Transaction {
+	resp, err := http.Get("http://localhost:8080/getOne?index="+string(index))
+	if err != nil {
+		// handle error
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+
+
+
+	arr := []byte(string(body))
+
+	var _trans transaction.Transaction
+	json.Unmarshal(arr, &_trans)
+	return _trans
+
+}
+
 func main() {
 
 	fmt.Println("Started My app")
 	app := NewCertificateApplication()
 
-	srv := server.NewSocketServer("tcp://0.0.0.0:26658", app)
+	srv := server.NewSocketServer("tcp://0.0.0.0:46658", app)
 
 	if err := srv.Start(); err != nil {
 		fmt.Println(err)

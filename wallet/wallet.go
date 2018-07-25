@@ -36,7 +36,7 @@ func newKeyPair() (*rsa.PrivateKey,*rsa.PublicKey){
 }
 
 
-func (w * Wallet) SignTransaction (t * transactoin.Transaction) [] byte {
+func (w * Wallet) SignTransaction (t * transaction.Transaction) [] byte {
 
 	messageBytes := bytes.NewBufferString(t.MixTransaction())
 	hash := sha512.New()
@@ -55,7 +55,7 @@ func (w * Wallet) SignTransaction (t * transactoin.Transaction) [] byte {
 
 }
 
-func  (w * Wallet) VerifyTransaction(t * transactoin.Transaction) bool {
+func  (w * Wallet) VerifyTransaction(t * transaction.Transaction) bool {
 
 	messageBytes := bytes.NewBufferString(t.MixTransaction())
 	hash := sha512.New()
@@ -138,10 +138,8 @@ func test() {
 
 	fmt.Println("Started My app")
 
-
-
 	myWallet :=NewWallet()
-	transact :=transactoin.NewTransaction("Fatih","Computer Science",150113082)
+	transact :=transaction.NewTransaction("Fatih","Computer Science",150113082)
 
 	myWallet.SignTransaction(transact)
 	fmt.Println(myWallet.VerifyTransaction(transact))

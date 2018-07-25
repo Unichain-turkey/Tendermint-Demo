@@ -18,7 +18,7 @@ type transactFormat struct {
 
 var mywallet * wallet.Wallet
 
-var transactions []transactoin.Transaction
+var transactions [] transaction.Transaction
 
 
 func getIndex(c *gin.Context) {
@@ -48,6 +48,17 @@ func getAllTransactions(c *gin.Context) {
 	c.JSON(200, data)
 
 }
+func getOneTransactions(c *gin.Context) {
+
+	index := c.Query("index")
+	fmt.Println(index)
+
+	i, _ := strconv.Atoi(index)
+
+	c.JSON(200,transactions[i] )
+
+}
+
 
 func signTransaction(c *gin.Context) {
 
@@ -55,7 +66,7 @@ func signTransaction(c *gin.Context) {
 	c.BindJSON(&t)
 
 	fmt.Println(t)
-	_transaction :=transactoin.NewTransaction(t.NAME,t.MAJOR,t.ID)
+	_transaction := transaction.NewTransaction(t.NAME,t.MAJOR,t.ID)
 	signature := mywallet.SignTransaction(_transaction)
 	_transaction.Signature=signature
 	transactions = append(transactions,*_transaction)
@@ -89,6 +100,7 @@ func main() {
 	router.GET("/", getIndex)
 	router.GET("/keys", getKeys)
 	router.GET("/all", getAllTransactions)
+	router.GET("/getOne", getOneTransactions)
 	router.POST("/sign", signTransaction)
 	router.GET("/verify", verifyTransaction)
 
